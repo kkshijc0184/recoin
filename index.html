@@ -1,0 +1,1139 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Registro de Copias</title>
+    <link rel="icon" type="image/svg+xml" href="machine-copy.svg" />
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#0a3526" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="Copias" />
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () =>
+          navigator.serviceWorker.register("sw.js").catch(() => {}),
+        );
+      }
+    </script>
+    <!-- Fuentes -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;600;700;800&family=Figtree:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Libreria Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- Libreria de notificaciones (SweetAlert2) -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+      // Aplica la identidad visual de la app (papel/tinta, IBM Plex Mono) a TODOS
+      // los diálogos de SweetAlert2 (confirmar, cambiar rol, avisos, etc.).
+      // Se redefine una sola vez aquí para no tener que tocar cada Swal.fire()
+      // repartido en los módulos de js/modules. El toast (js/services/09-local-toast.js)
+      // ya trae su propio customClass y no se ve afectado por este cambio.
+      if (window.Swal) {
+        window.Swal = Swal.mixin({
+          buttonsStyling: false,
+          reverseButtons: true,
+          focusCancel: false,
+          customClass: { popup: "app-swal2" },
+        });
+      }
+    </script>
+
+    <!-- Estilos propios -->
+    <link rel="stylesheet" href="css/styles.css" />
+    <link rel="stylesheet" href="css/inventario.css" />
+  </head>
+  <body>
+    <div
+      id="appLoadError"
+      class="login-error"
+      hidden
+      style="max-width: 520px; margin: 30px auto"
+    ></div>
+    <div class="app" id="appRoot" hidden>
+      <header>
+        <div>
+          <h1>&#128203; Registro de Copias</h1>
+          <div class="sub">Control de impresiones y cobro por docente</div>
+        </div>
+        <div class="header-right">
+          <div class="user-badge" id="userBadge" hidden></div>
+          <button
+            class="notification-bell"
+            id="notificationBell"
+            type="button"
+            hidden
+            title="Solicitudes de copias"
+          >
+            <span>🔔</span
+            ><span class="notification-count" id="notificationCount" hidden
+              >0</span
+            >
+          </button>
+          <div class="price-tag">
+            S/
+            <input
+              type="number"
+              id="priceInput"
+              step="0.01"
+              min="0"
+              value="0.10"
+            />
+            por cara
+          </div>
+          <button class="btn secondary small" id="logoutBtn" type="button">
+            &#128274; Salir
+          </button>
+        </div>
+      </header>
+
+      <nav class="tabs">
+        <button data-tab="dashboard">Inicio</button>
+        <button data-tab="registrar" class="active">Registrar</button>
+        <button data-tab="solicitudes" id="solicitudesTab">
+          <span id="solicitudesTabLabel">🔔 Solicitudes</span>
+          <span class="tab-count" id="tabSolicitudesCount" hidden>0</span>
+        </button>
+        <button data-tab="registros">Registros</button>
+        <button data-tab="reportes">Ranking</button>
+        <button data-tab="mensual">Reporte mensual</button>
+        <button data-tab="inventario">Inventario</button>
+        <button data-tab="prestamos">Pr&#233;stamos</button>
+        <button data-tab="config">Configuraci&#243;n</button>
+      </nav>
+
+      <!-- DASHBOARD / RESUMEN -->
+      <section class="panel" id="panel-dashboard">
+        <div class="dashboard-head">
+          <div>
+            <h2>Panel de control</h2>
+            <p id="dashboardMonthLabel" class="hint">Resumen del mes actual</p>
+          </div>
+          <button
+            class="btn secondary small"
+            id="dashboardGoMonthlyBtn"
+            type="button"
+          >
+            Ver reporte mensual
+          </button>
+        </div>
+
+        <nav class="subtabs">
+          <button data-subtab="dashboard-operativo" class="active">
+            Resumen operativo
+          </button>
+          <button data-subtab="dashboard-seccion">Resumen por sección</button>
+        </nav>
+
+        <div class="subpanel active" id="dashboard-operativo">
+          <div class="dashboard-stats">
+            <div class="dashboard-stat">
+              <div class="dashboard-stat-icon">#</div>
+              <div>
+                <div class="dashboard-stat-value" id="dashRegistros">0</div>
+                <div class="dashboard-stat-label">Registros del mes</div>
+              </div>
+            </div>
+            <div class="dashboard-stat">
+              <div class="dashboard-stat-icon">J</div>
+              <div>
+                <div class="dashboard-stat-value" id="dashCopias">0</div>
+                <div class="dashboard-stat-label">Copias (juegos)</div>
+              </div>
+            </div>
+            <div class="dashboard-stat">
+              <div class="dashboard-stat-icon">C</div>
+              <div>
+                <div class="dashboard-stat-value" id="dashCaras">0</div>
+                <div class="dashboard-stat-label">Caras impresas</div>
+              </div>
+            </div>
+            <div class="dashboard-stat money">
+              <div class="dashboard-stat-icon">S/</div>
+              <div>
+                <div class="dashboard-stat-value" id="dashPorCobrar">S/ 0.00</div>
+                <div class="dashboard-stat-label">Total a cobrar</div>
+              </div>
+            </div>
+            <div class="dashboard-stat success">
+              <div class="dashboard-stat-icon">✓</div>
+              <div>
+                <div class="dashboard-stat-value" id="dashCobrado">S/ 0.00</div>
+                <div class="dashboard-stat-label">Cobrado</div>
+              </div>
+            </div>
+            <div class="dashboard-stat warning">
+              <div class="dashboard-stat-icon">!</div>
+              <div>
+                <div class="dashboard-stat-value" id="dashPendiente">S/ 0.00</div>
+                <div class="dashboard-stat-label">Saldo pendiente</div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="dashboard-request-card"
+            id="dashboardSolicitudesCard"
+            hidden
+          >
+            <div>
+              <div class="dashboard-request-kicker">🔔 Atención</div>
+              <h3>Solicitudes de copias pendientes</h3>
+              <p id="dashboardSolicitudesText">Hay solicitudes por atender.</p>
+            </div>
+            <div class="dashboard-request-actions">
+              <strong id="dashboardSolicitudesCount">0</strong>
+              <button
+                class="btn small"
+                id="dashboardGoSolicitudesBtn"
+                type="button"
+              >
+                Ver solicitudes
+              </button>
+            </div>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="card dashboard-card">
+              <h2>Estado de cobros</h2>
+              <div class="dashboard-progress-wrap">
+                <div class="dashboard-progress-label">
+                  <span>Recaudación del mes</span
+                  ><b id="dashCobroPorcentaje">0%</b>
+                </div>
+                <div class="dashboard-progress">
+                  <div id="dashCobroBar" class="dashboard-progress-bar"></div>
+                </div>
+              </div>
+              <div class="dashboard-status-row">
+                <div>
+                  <b id="dashSeccionesPagadas">0</b><span>Secciones pagadas</span>
+                </div>
+                <div>
+                  <b id="dashSeccionesPendientes">0</b
+                  ><span>Secciones pendientes</span>
+                </div>
+                <div>
+                  <b id="dashSeccionesConsumo">0</b><span>Con consumo</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card dashboard-card">
+              <h2>Información rápida</h2>
+              <div class="dashboard-info-list">
+                <div>
+                  <span>Precio actual por cara</span
+                  ><b id="dashPrecio">S/ 0.00</b>
+                </div>
+                <div>
+                  <span>Último registro</span><b id="dashUltimoRegistro">—</b>
+                </div>
+                <div>
+                  <span>Docentes con registros</span><b id="dashDocentes">0</b>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="subpanel" id="dashboard-seccion">
+          <div class="card dashboard-card">
+            <div class="dashboard-table-head">
+              <div>
+                <h2>Resumen por sección</h2>
+                <p class="hint">
+                  Solo se muestran las secciones que tuvieron consumo en el mes.
+                </p>
+              </div>
+            </div>
+            <div id="dashboardSecciones"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- REGISTRAR -->
+      <section class="panel active" id="panel-registrar">
+        <div class="card">
+          <h2 id="entryFormTitle">Nuevo registro</h2>
+          <div class="edit-banner" id="editBanner" hidden>
+            <span>&#9998; Editando un registro existente</span>
+            <button
+              type="button"
+              class="btn secondary small"
+              id="cancelEditBtn"
+            >
+              &#10005; Cancelar edici&#243;n
+            </button>
+          </div>
+          <form class="entry" id="entryForm">
+            <div class="field">
+              <label for="fecha">Fecha</label>
+              <input type="date" id="fecha" required />
+              <p class="field-hint" id="fechaHint" hidden>
+                📅 La fecha se establece automáticamente con la fecha de hoy.
+              </p>
+            </div>
+            <div class="field">
+              <label for="docente">Docente</label>
+              <input
+                type="text"
+                id="docente"
+                list="docentesList"
+                placeholder="Escribe o elige..."
+                required
+                autocomplete="off"
+              />
+              <datalist id="docentesList"></datalist>
+            </div>
+            <div class="field">
+              <label for="area">&#193;rea</label>
+              <input
+                type="text"
+                id="area"
+                list="areasList"
+                placeholder="Escribe o elige..."
+                required
+                autocomplete="off"
+              />
+              <datalist id="areasList"></datalist>
+            </div>
+            <div class="field">
+              <label for="gradoSeccion">Grado y secci&#243;n</label>
+              <input
+                type="text"
+                id="gradoSeccion"
+                list="gradoSeccionList"
+                placeholder="Escribe o elige..."
+                required
+                autocomplete="off"
+              />
+              <datalist id="gradoSeccionList"></datalist>
+            </div>
+            <div class="field">
+              <label for="copias">N&#176; de copias (juegos)</label>
+              <input type="number" id="copias" min="1" value="1" required />
+            </div>
+            <div class="field">
+              <label for="caras">Caras por copia</label>
+              <input type="number" id="caras" min="1" value="1" required />
+            </div>
+            <div class="calc-line">
+              <span>Total caras: <b id="calcCaras">1</b></span>
+              <span>Total a cobrar: <b id="calcCosto">S/ 0.10</b></span>
+            </div>
+            <button type="submit" class="btn" id="entrySubmitBtn">
+              Guardar registro
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- SOLICITUDES DE COPIAS -->
+      <section class="panel" id="panel-solicitudes">
+        <div class="dashboard-head">
+          <div>
+            <div class="dashboard-kicker">Atención operativa</div>
+            <h2 id="solicitudesTitle">Solicitudes de copias</h2>
+            <p class="hint" id="solicitudesSubtitle">
+              Solicitudes enviadas por docentes desde celular o tableta.
+            </p>
+          </div>
+          <button
+            class="btn secondary small"
+            id="reloadSolicitudesBtn"
+            type="button"
+          >
+            ↻ Actualizar
+          </button>
+        </div>
+        <div class="request-summary" id="solicitudesResumen"></div>
+        <div class="pag-controls" id="solicitudesPagControls" hidden>
+          <label class="pag-label"
+            >Mostrar:
+            <select id="pagSizeSol">
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="15">15</option>
+              <option value="20">20</option>
+              <option value="9999">Todas</option>
+            </select>
+            por p&#225;gina
+          </label>
+          <div id="pagInfoSol" class="pag-info"></div>
+        </div>
+        <div id="solicitudesWrap">
+          <div class="empty">Cargando solicitudes...</div>
+        </div>
+        <div id="pagNavSol" class="pag-nav"></div>
+      </section>
+
+      <!-- REGISTROS -->
+      <section class="panel" id="panel-registros">
+        <div class="card">
+          <h2>Historial</h2>
+          <div class="filters">
+            <div class="field">
+              <label>Buscar docente</label>
+              <input type="text" id="searchDocente" placeholder="Nombre..." />
+            </div>
+            <div class="field">
+              <label>Grado y secci&#243;n</label>
+              <input type="text" id="searchGrado" placeholder="Ej. 2&#176; C" />
+            </div>
+            <div class="field">
+              <label>Desde</label>
+              <input type="date" id="searchDesde" />
+            </div>
+            <div class="field">
+              <label>Hasta</label>
+              <input type="date" id="searchHasta" />
+            </div>
+            <div style="display: flex; align-items: flex-end">
+              <button
+                class="btn secondary small"
+                id="clearFiltersBtn"
+                type="button"
+              >
+                &#10005; Limpiar filtros
+              </button>
+            </div>
+          </div>
+          <div class="pag-controls">
+            <label class="pag-label"
+              >Mostrar:
+              <select id="pagSizeReg">
+                <option value="5">5</option>
+                <option value="10" selected>10</option>
+                <option value="15">15</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="9999">Todos</option>
+              </select>
+              por p&#225;gina
+            </label>
+            <div id="pagInfoReg" class="pag-info"></div>
+          </div>
+          <div id="filtroTotales"></div>
+          <div id="tableWrap"></div>
+          <div id="pagNavReg" class="pag-nav"></div>
+        </div>
+      </section>
+
+      <!-- RANKING / REPORTES GENERALES -->
+      <section class="panel" id="panel-reportes">
+        <!-- Selector de periodo del ranking -->
+        <div class="card">
+          <div class="pag-controls">
+            <div>
+              <h2 style="margin-bottom: 4px">Ranking mensual</h2>
+              <div style="font-size: 0.9rem; color: var(--ink-soft)">
+                Selecciona el mes que deseas consultar.
+              </div>
+            </div>
+
+            <label class="pag-label">
+              Mes:
+              <select id="selectMesRanking"></select>
+            </label>
+          </div>
+        </div>
+        
+        <nav class="subtabs">
+          <button data-subtab="reportes-total" class="active">
+            Total general
+          </button>
+          <button data-subtab="reportes-docente">Ranking por docente</button>
+          <button data-subtab="reportes-grado">Por grado y secci&#243;n</button>
+        </nav>
+
+        <div class="subpanel active" id="reportes-total">
+          <div class="card">
+            <h2 id="tituloTotalGeneral">Total general (hist&#243;rico)</h2>
+            <div class="stamp-wrap">
+              <div class="stamp">
+                <div class="label">Total a cobrar</div>
+                <div class="amount" id="totalGeneral">S/ 0.00</div>
+              </div>
+            </div>
+            <div class="stats-grid">
+              <div class="stat-box">
+                <div class="n" id="statRegistros">0</div>
+                <div class="l">Registros</div>
+              </div>
+              <div class="stat-box">
+                <div class="n" id="statCopias">0</div>
+                <div class="l">Copias</div>
+              </div>
+              <div class="stat-box">
+                <div class="n" id="statCaras">0</div>
+                <div class="l">Caras totales</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="subpanel" id="reportes-docente">
+          <div class="card">
+            <h2 id="tituloRankingDocentes">Ranking por docente</h2>
+            <div class="pag-controls">
+              <label class="pag-label"
+                >Mostrar:
+                <select id="pagSizeDoc">
+                  <option value="5" selected>5</option>
+                  <option value="10">10</option>
+                  <option value="15">15</option>
+                  <option value="20">20</option>
+                  <option value="9999">Todos</option>
+                </select>
+                por p&#225;gina
+              </label>
+              <div id="pagInfoDoc" class="pag-info"></div>
+            </div>
+            <div id="rankDocentes"></div>
+            <div id="pagNavDoc" class="pag-nav"></div>
+          </div>
+        </div>
+
+        <div class="subpanel" id="reportes-grado">
+          <div class="card">
+            <h2 id="tituloRankingGrados">Por grado y secci&#243;n</h2>
+            <div class="pag-controls">
+              <label class="pag-label"
+                >Mostrar:
+                <select id="pagSizeGrad">
+                  <option value="5" selected>5</option>
+                  <option value="10">10</option>
+                  <option value="15">15</option>
+                  <option value="20">20</option>
+                  <option value="9999">Todos</option>
+                </select>
+                por p&#225;gina
+              </label>
+              <div id="pagInfoGrad" class="pag-info"></div>
+            </div>
+            <div id="rankGrados"></div>
+            <div id="pagNavGrad" class="pag-nav"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- REPORTE MENSUAL -->
+      <section class="panel" id="panel-mensual">
+        <nav class="subtabs">
+          <button data-subtab="mensual-reporte" class="active">
+            Reporte mensual para cobro
+          </button>
+          <button data-subtab="mensual-cobros">Estado de cobros del mes</button>
+        </nav>
+
+        <div class="subpanel active" id="mensual-reporte">
+          <div class="card">
+            <h2>Reporte mensual para cobro</h2>
+            <div class="month-picker">
+              <div class="field" style="max-width: 200px">
+                <label for="monthPicker">Mes</label>
+                <input type="month" id="monthPicker" />
+              </div>
+              <button class="btn secondary small" id="printBtn" type="button">
+                &#128424;&#65039; Imprimir / PDF
+              </button>
+            </div>
+            <div class="report-sheet" id="reportSheet"></div>
+          </div>
+        </div>
+
+        <div class="subpanel" id="mensual-cobros">
+          <div class="card" id="cobrosCard">
+            <h2>Estado de cobros del mes</h2>
+            <p class="hint">
+              Marca cada secci&#243;n cuando ya haya pagado. El historial queda
+              guardado.
+            </p>
+            <div id="cobrosResumen"></div>
+            <div id="cobrosTabla"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CONFIGURACI&#211;N -->
+      <section class="panel" id="panel-config">
+        <nav class="subtabs">
+          <button data-subtab="config-respaldo" class="active">
+            Respaldo de datos
+          </button>
+          <button data-subtab="config-colegio">Datos del colegio</button>
+          <button data-subtab="config-docentes">Docentes y asignaciones</button>
+          <button data-subtab="config-secciones">Grados y secciones</button>
+          <button data-subtab="config-usuarios" id="configUsuariosTab">
+            Usuarios y roles
+          </button>
+        </nav>
+
+        <div class="subpanel active" id="config-respaldo">
+          <div class="card">
+            <h2>Respaldo de datos</h2>
+            <p class="hint">
+              Tus registros ya se guardan solos en tu cuenta, pero descarga una
+              copia cuando quieras tener un respaldo aparte (por ejemplo para
+              entregar el reporte o guardar en tu computadora).
+            </p>
+            <div class="add-row">
+              <button
+                class="btn secondary small"
+                id="exportExcelBtn"
+                type="button"
+              >
+                &#128229; Descargar Excel (todos los registros)
+              </button>
+              <button
+                class="btn secondary small"
+                id="exportJsonBtn"
+                type="button"
+              >
+                &#128229; Descargar respaldo completo (.json)
+              </button>
+            </div>
+            <div class="add-row" style="margin-top: 14px">
+              <label style="align-self: center; margin: 0"
+                >Restaurar desde respaldo (.json):</label
+              >
+              <input
+                type="file"
+                id="importJsonInput"
+                accept="application/json"
+                style="flex: 1"
+              />
+            </div>
+            <p class="hint" style="margin-top: 10px; margin-bottom: 0">
+              Restaurar reemplaza todos los registros, docentes, &#225;reas y
+              secciones actuales por los del archivo.
+            </p>
+          </div>
+        </div>
+
+        <div class="subpanel" id="config-colegio">
+          <div class="card">
+            <h2>Datos del colegio</h2>
+            <div class="field">
+              <label for="schoolNameInput"
+                >Nombre del colegio (aparece en el reporte y la boleta)</label
+              >
+              <input
+                type="text"
+                id="schoolNameInput"
+                placeholder="Nombre de la I.E."
+              />
+            </div>
+            <div class="field">
+              <label for="schoolAddressInput"
+                >Direcci&#243;n (aparece en la boleta)</label
+              >
+              <input
+                type="text"
+                id="schoolAddressInput"
+                placeholder="Jr. Ejemplo S/N &bull; Distrito &bull; Provincia"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="subpanel" id="config-docentes">
+          <!-- Formulario agregar / editar -->
+
+          <div class="card" id="docExcelCard" style="margin-top: 14px">
+            <h2>📊 Importar docentes desde Excel</h2>
+            <p class="hint">
+              Descarga la plantilla, complétala y vuelve a subirla. Puedes
+              cargar varias asignaciones a la vez.
+            </p>
+            <div class="add-row" style="gap: 10px; flex-wrap: wrap">
+              <button
+                class="btn secondary small"
+                id="downloadDocTemplateBtn"
+                type="button"
+              >
+                📥 Descargar plantilla Excel
+              </button>
+              <input
+                type="file"
+                id="docExcelInput"
+                accept=".xlsx,.xls"
+                style="flex: 1; min-width: 240px"
+              />
+              <button
+                class="btn primary small"
+                id="importDocExcelBtn"
+                type="button"
+              >
+                📤 Importar Excel
+              </button>
+            </div>
+            <p class="hint" style="margin-top: 10px; margin-bottom: 0">
+              Columnas obligatorias: nombre, area, grado, seccion. Columnas
+              opcionales: tipo, activo.
+            </p>
+            <div id="docExcelPreview" style="margin-top: 12px"></div>
+          </div>
+
+          <div class="card" id="docFormCard">
+            <h2 id="docFormTitle">Agregar nueva asignaci&#243;n</h2>
+            <p class="hint">
+              Un docente puede tener varias asignaciones (una por cada &#225;rea
+              y secci&#243;n). Agrega una fila por cada combinaci&#243;n.
+            </p>
+            <div class="doc-form">
+              <div class="field">
+                <label>Docente</label>
+                <input
+                  type="text"
+                  id="newDocNombre"
+                  list="docentesList"
+                  placeholder="Nombre del docente"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="field">
+                <label>&#193;rea</label>
+                <input
+                  type="text"
+                  id="newDocArea"
+                  placeholder="Ej. Comunicaci&#243;n"
+                />
+              </div>
+              <div class="field">
+                <label>Grado</label>
+                <input type="text" id="newDocGrado" placeholder="Ej. 3&#176;" />
+              </div>
+              <div class="field">
+                <label>Secci&#243;n</label>
+                <input type="text" id="newDocSeccion" placeholder="Ej. A" />
+              </div>
+              <div class="field">
+                <label>Tipo</label>
+                <select id="newDocTipo">
+                  <option value="Contratado" selected>Contratado</option>
+                  <option value="Nombrado">Nombrado</option>
+                </select>
+              </div>
+              <div class="doc-form-btns">
+                <button type="button" class="btn small" id="saveNewDocBtn">
+                  &#43; Guardar
+                </button>
+                <button
+                  type="button"
+                  class="btn secondary small"
+                  id="cancelDocEditBtn"
+                  hidden
+                >
+                  &#10005; Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabla de asignaciones -->
+          <div class="card">
+            <h2>Asignaciones actuales</h2>
+            <div id="docResumen" class="hint" style="margin-bottom: 10px"></div>
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                flex-wrap: wrap;
+                margin-bottom: 14px;
+              "
+            >
+              <button
+                class="btn secondary small"
+                id="addDocenteBtn"
+                type="button"
+              >
+                &#8635; Recargar desde Supabase
+              </button>
+              <label class="pag-label"
+                >Mostrar:
+                <select id="pagSizeCfg">
+                  <option value="10" selected>10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                  <option value="9999">Todos</option>
+                </select>
+                por p&#225;gina
+              </label>
+              <div id="pagInfoCfg" class="pag-info"></div>
+            </div>
+            <div id="docentesTableWrap"></div>
+            <div id="pagNavCfg" class="pag-nav"></div>
+          </div>
+        </div>
+
+        <div class="subpanel" id="config-secciones">
+          <div class="card">
+            <h2>Grados y secciones activos</h2>
+            <p class="hint">
+              Derivados autom&#225;ticamente de los docentes registrados en
+              Supabase.
+            </p>
+            <div id="seccionesChips"></div>
+          </div>
+        </div>
+
+        <div class="subpanel" id="config-usuarios">
+          <div class="card" id="usuariosFormCard">
+            <h2>Crear usuario y asignar rol</h2>
+            <p class="hint">
+              Crea la cuenta de acceso y configura su rol desde el aplicativo.
+            </p>
+            <div class="user-form">
+              <div class="field">
+                <label for="newUserNombre">Nombre</label
+                ><input
+                  id="newUserNombre"
+                  type="text"
+                  placeholder="Nombre completo"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="field">
+                <label for="newUserEmail">Correo</label
+                ><input
+                  id="newUserEmail"
+                  type="email"
+                  placeholder="correo@ejemplo.com"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="field">
+                <label for="newUserPassword">Contraseña temporal</label>
+                <div style="display: flex; gap: 8px; align-items: center">
+                  <input
+                    id="newUserPassword"
+                    type="password"
+                    minlength="6"
+                    placeholder="Mínimo 6 caracteres"
+                    autocomplete="new-password"
+                    style="flex: 1"
+                  /><button
+                    type="button"
+                    class="btn secondary small"
+                    id="generateTempPasswordBtn"
+                  >
+                    Generar
+                  </button>
+                </div>
+              </div>
+              <div
+                class="field"
+                style="display: flex; align-items: center; gap: 8px"
+              >
+                <input
+                  id="sendCredentialsEmail"
+                  type="checkbox"
+                  checked
+                  style="width: auto"
+                /><label for="sendCredentialsEmail" style="margin: 0"
+                  >Enviar credenciales al correo</label
+                >
+              </div>
+              <div class="field">
+                <label for="newUserRol">Rol</label
+                ><select id="newUserRol">
+                  <option value="docente">Docente</option>
+                  <option value="directivo">Directivo</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </div>
+              <div class="field" id="newUserDocenteWrap">
+                <label for="newUserDocente">Docente asignado</label
+                ><select id="newUserDocente">
+                  <option value="">Selecciona el docente</option>
+                </select>
+              </div>
+              <div class="user-form-btns">
+                <button type="button" class="btn small" id="createUserBtn">
+                  + Crear usuario
+                </button>
+              </div>
+            </div>
+            <div class="user-role-notes">
+              <p class="hint user-role-note" id="userRoleNote"></p>
+              <p class="hint">
+                La contraseña indicada será temporal. En el primer ingreso el
+                usuario deberá cambiarla.
+              </p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="user-table-head">
+              <div>
+                <h2>Usuarios registrados</h2>
+                <p class="hint">
+                  Gestiona &#250;nicamente las cuentas permitidas por tu rol.
+                </p>
+              </div>
+              <button
+                class="btn secondary small"
+                id="reloadUsersBtn"
+                type="button"
+              >
+                &#8635; Recargar
+              </button>
+            </div>
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                flex-wrap: wrap;
+                margin-bottom: 14px;
+              "
+            >
+              <label class="pag-label"
+                >Mostrar:
+                <select id="pagSizeUsr">
+                  <option value="5">5</option>
+                  <option value="10" selected>10</option>
+                  <option value="15">15</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                  <option value="9999">Todos</option>
+                </select>
+                por p&#225;gina
+              </label>
+              <div id="pagInfoUsr" class="pag-info"></div>
+            </div>
+            <div id="usuariosTableWrap"></div>
+            <div id="pagNavUsr" class="pag-nav"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- INVENTARIO -->
+      <section class="panel" id="panel-inventario">
+        <nav class="subtabs">
+          <button data-subtab="inv-bienes" class="active">Bienes</button>
+          <button data-subtab="inv-lista">Inventario de bienes</button>
+          <button data-subtab="inv-historial">Historial de cambios</button>
+        </nav>
+
+        <div class="subpanel active" id="inv-bienes">
+          <div class="request-summary" id="invStats"></div>
+        </div>
+
+        <div class="subpanel" id="inv-lista">
+          <div class="card">
+            <h2>Inventario de bienes</h2>
+            <p class="hint" id="invAvisoLectura" hidden>
+              &#128065;&#65039; Modo solo lectura: puedes consultar y exportar el inventario,
+              pero solo el encargado puede modificarlo.
+            </p>
+            <div class="filters">
+              <div class="field">
+                <label>Buscar</label>
+                <input type="text" id="invSearch" placeholder="Nombre, marca, serie o c&#243;digo..." />
+              </div>
+              <div class="field">
+                <label>Categor&#237;a</label>
+                <select id="invCat"></select>
+              </div>
+              <div class="field">
+                <label>Situaci&#243;n</label>
+                <select id="invSit">
+                  <option value="A">Bienes activos</option>
+                  <option value="B">De baja</option>
+                  <option value="T">Todos</option>
+                </select>
+              </div>
+              <div class="field inv-check-field">
+                <label><input type="checkbox" id="invSoloSinSerie" /> Solo sin serie</label>
+              </div>
+            </div>
+            <div class="inv-toolbar">
+              <button class="btn small" id="invAddBtn" type="button">+ Agregar bien</button>
+              <button class="btn secondary small" id="invExcelBtn" type="button">&#128229; Exportar Excel</button>
+              <button class="btn secondary small" id="invPdfBtn" type="button">&#128424;&#65039; Exportar PDF</button>
+            </div>
+            <div id="invResumen"></div>
+            <div class="pag-controls">
+              <label class="pag-label"
+                >Mostrar:
+                <select id="pagSizeInv">
+                  <option value="10" selected>10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                  <option value="9999">Todos</option>
+                </select>
+                por p&#225;gina
+              </label>
+              <div id="pagInfoInv" class="pag-info"></div>
+            </div>
+            <div id="invTableWrap"><div class="empty">Cargando inventario...</div></div>
+            <div id="pagNavInv" class="pag-nav"></div>
+          </div>
+        </div>
+
+        <div class="subpanel" id="inv-historial">
+          <div class="card">
+            <h2>Historial de cambios</h2>
+            <p class="hint">
+              Cada alta, edici&#243;n, baja, pr&#233;stamo y devoluci&#243;n queda registrado con
+              la persona, la fecha y la hora. Nadie puede borrar ni alterar este historial.
+            </p>
+            <div class="filters">
+              <div class="field">
+                <label>Buscar</label>
+                <input type="text" id="hisSearch" placeholder="Bien, usuario, acci&#243;n..." />
+              </div>
+              <div style="display: flex; align-items: flex-end">
+                <button class="btn secondary small" id="hisReloadBtn" type="button">&#8635; Actualizar</button>
+              </div>
+            </div>
+            <div class="pag-controls">
+              <label class="pag-label"
+                >Mostrar:
+                <select id="pagSizeHis">
+                  <option value="10" selected>10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                </select>
+                por p&#225;gina
+              </label>
+              <div id="pagInfoHis" class="pag-info"></div>
+            </div>
+            <div id="hisTableWrap"><div class="empty">Abre esta pesta&#241;a para cargar el historial.</div></div>
+            <div id="pagNavHis" class="pag-nav"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PRESTAMOS -->
+      <section class="panel" id="panel-prestamos">
+        <div class="dashboard-head">
+          <div>
+            <div class="dashboard-kicker">Recursos tecnol&#243;gicos</div>
+            <h2>Pr&#233;stamos</h2>
+            <p class="hint" id="prAvisoLectura" hidden>
+              &#128065;&#65039; Modo solo lectura: puedes consultar los pr&#233;stamos,
+              pero solo el encargado puede registrarlos.
+            </p>
+          </div>
+        </div>
+        <div id="prAlerta"></div>
+
+        <nav class="subtabs">
+          <button data-subtab="pr-resumen" class="active">Resumen</button>
+          <button data-subtab="pr-nuevo">Nuevo pr&#233;stamo</button>
+          <button data-subtab="pr-historial">Historial de pr&#233;stamos</button>
+        </nav>
+
+        <div class="subpanel active" id="pr-resumen">
+        <div class="request-summary" id="prStats"></div>
+        </div>
+
+        <div class="subpanel" id="pr-nuevo">
+        <div class="card" id="prFormCard">
+          <h2>Nuevo pr&#233;stamo</h2>
+          <div class="pr-row">
+            <div class="field pr-grow">
+              <label>Bien (escribe el c&#243;digo o el nombre)</label>
+              <input type="text" id="prBien" list="prBienesList" placeholder="Ej. JEC-0001 o proyector" autocomplete="off" />
+              <datalist id="prBienesList"></datalist>
+            </div>
+            <div class="field pr-cant">
+              <label>Cantidad</label>
+              <input type="number" id="prCant" min="1" value="1" disabled />
+            </div>
+            <div class="pr-btn">
+              <button class="btn secondary small" id="prAddBtn" type="button">+ Agregar a la lista</button>
+            </div>
+          </div>
+          <div id="prCarrito" class="pr-carrito"></div>
+          <div class="pr-row">
+            <div class="field pr-grow">
+              <label>Docente</label>
+              <select id="prDocente"></select>
+            </div>
+            <div class="field pr-grow">
+              <label>Aula / grado</label>
+              <input type="text" id="prAula" placeholder="Ej. 5&#176; A" />
+            </div>
+            <div class="field pr-hora">
+              <label>Hora de salida</label>
+              <input type="time" id="prHora" />
+            </div>
+          </div>
+          <div class="pr-row">
+            <div class="field pr-grow">
+              <label>Observaci&#243;n (opcional)</label>
+              <input type="text" id="prObs" placeholder="Ej. Cable HDMI incluido" />
+            </div>
+            <div class="pr-btn">
+              <button class="btn small" id="prRegistrarBtn" type="button">Registrar pr&#233;stamo</button>
+            </div>
+          </div>
+          <p class="hint">Si dejas la hora vac&#237;a se usa la hora actual. La devoluci&#243;n registra su hora sola.</p>
+        </div>
+        </div>
+
+        <div class="subpanel" id="pr-historial">
+        <div class="card">
+          <h2>Historial de pr&#233;stamos</h2>
+          <div class="filters">
+            <div class="field">
+              <label>Buscar</label>
+              <input type="text" id="prBuscar" placeholder="Docente, aula o bien..." />
+            </div>
+            <div class="field">
+              <label>Estado</label>
+              <select id="prEstado">
+                <option value="">Todos</option>
+                <option value="prestado">Pendientes de devolver</option>
+                <option value="devuelto">Devueltos</option>
+                <option value="anulado">Anulados</option>
+              </select>
+            </div>
+          </div>
+          <div class="pag-controls">
+            <label class="pag-label"
+              >Mostrar:
+              <select id="pagSizePre">
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="9999">Todos</option>
+              </select>
+              por p&#225;gina
+            </label>
+            <div id="pagInfoPre" class="pag-info"></div>
+          </div>
+          <div id="prTableWrap"><div class="empty">Cargando pr&#233;stamos...</div></div>
+          <div id="pagNavPre" class="pag-nav"></div>
+        </div>
+        </div>
+      </section>
+    </div>
+    <!-- /#appRoot -->
+    <audio id="notifSound" src="notificacion.mp3" preload="auto"></audio>
+    <script src="app.js"></script>
+    <!-- Solo visual: rotula las celdas para mostrar las tablas como tarjetas en celular -->
+    <script src="js/ui-tablas-movil.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,41 @@
+/* =============================================
+   Inventario y Préstamos - estilos propios
+   (usa las variables de styles.css)
+============================================= */
+.inv-scroll{ overflow-x:auto; }
+.inv-scroll table{ min-width:760px; }
+.inv-code{ font-family:var(--font-display); font-weight:700; font-size:.82rem; color:var(--brand-700); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.inv-nota{ color:var(--ink-soft); font-size:.78rem; }
+.inv-lote{ display:inline-block; padding:3px 10px; border-radius:999px; background:var(--paper-dark); color:var(--ink-soft); font-size:.72rem; font-weight:700; white-space:nowrap; }
+.inv-baja td{ opacity:.6; }
+.inv-sinserie{ color:var(--red); font-size:.82rem; font-weight:600; }
+.inv-serie{ width:160px; padding:6px 10px; font-size:.85rem; border-radius:8px; }
+.inv-serie.inv-dup{ border-color:var(--red); background:var(--red-soft); }
+.inv-acciones{ white-space:nowrap; text-align:right; }
+.inv-acciones .btn{ margin-left:4px; }
+.inv-toolbar{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+.inv-check-field{ display:flex; align-items:flex-end; flex:0 0 auto !important; min-width:0 !important; }
+.inv-check-field label{ display:flex; align-items:center; gap:8px; margin:0 0 11px; font-size:.88rem; color:var(--ink); }
+.inv-check-field input{ width:auto; }
+
+/* Formulario dentro de SweetAlert2 */
+.app-swal2.swal2-popup:has(.inv-form){ max-width:620px; }
+.inv-form{ display:grid; grid-template-columns:1fr 1fr; gap:12px; text-align:left; }
+.inv-form .full{ grid-column:1 / -1; }
+.inv-form .inv-check{ display:flex; align-items:flex-end; }
+.inv-form .inv-check label{ display:flex; align-items:center; gap:8px; font-size:.85rem; }
+.inv-form .inv-check input{ width:auto; }
+@media (max-width:560px){ .inv-form{ grid-template-columns:1fr; } }
+
+/* Préstamos */
+.pr-row{ display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px; }
+.pr-row .field{ min-width:150px; }
+.pr-grow{ flex:1; }
+.pr-cant{ flex:0 0 100px; }
+.pr-hora{ flex:0 0 150px; }
+.pr-btn{ display:flex; align-items:flex-end; }
+.pr-carrito{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 16px; min-height:28px; align-items:center; }
+.pr-chip{ display:inline-flex; align-items:center; gap:8px; padding:5px 7px 5px 12px; border-radius:999px; background:var(--brand-100); color:var(--brand-800); font-size:.85rem; font-weight:600; }
+.pr-chip button{ border:none; background:var(--brand-700); color:#fff; width:22px; height:22px; border-radius:50%; cursor:pointer; line-height:1; font-size:.9rem; padding:0; }
+.pr-chip button:hover{ background:var(--red); }
+.pr-alerta{ background:var(--red-soft); color:#9c1c2c; border:1px solid #f0b4bc; border-left:5px solid var(--flag-red); border-radius:12px; padding:12px 16px; margin-bottom:16px; font-size:.9rem; font-weight:500; }
